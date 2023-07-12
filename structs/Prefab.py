@@ -1,6 +1,6 @@
-from structs.Base import Base
-from structs.Quality import Quality
-from structs.Rarity import Rarity
+from csgo_items_parser.structs.Base import Base
+from csgo_items_parser.structs.Quality import Quality
+from csgo_items_parser.structs.Rarity import Rarity
 
 class Prefab(Base):
     def __init__(self, codename: str, data: dict):

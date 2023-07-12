@@ -1,4 +1,4 @@
-from structs.Base import Base
+from csgo_items_parser.structs.Base import Base
 
 class Quality(Base):
     def __init__(self, codename: str, data: dict):

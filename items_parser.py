@@ -1,16 +1,18 @@
 from threading import Thread
 from time import sleep
+import logging
 import re
 
-from items_manager import ItemsManager
-from structs import *
+from csgo_items_parser.items_manager import ItemsManager
+from csgo_items_parser.structs import *
 
 class ItemsParser(Thread):
-    def __init__(self, debug: bool = False) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.debug = debug
-        self.items_manager = ItemsManager(debug=debug)
+        self.items_manager = ItemsManager()
+        self.logger = logging.getLogger("ItemsParser")
         self.manual_changes()
+        self.update_interval = 60 * 60 * 6 # 6 hours
 
         self.souvenir_collections = {
             "set_vertigo":          "The Vertigo Collection",
@@ -73,9 +75,6 @@ class ItemsParser(Thread):
             "spray_std_dollar": ["Battle Green", "Cash Green", "Frog Green", "Jungle Green"]
         }
 
-    def __debug_print(self, data):
-        if self.debug: print(f"[{self.__class__.__name__}] {data}")
-
     # manual changes to items data done before parsing
     def manual_changes(self):
         pass
@@ -86,10 +85,9 @@ class ItemsParser(Thread):
 
     def run(self):
         while True:
-            self.__debug_print("Updating files...")
+            sleep(self.update_interval)
+            self.logger.debug("Updating files...")
             self.items_manager.update_files()
-            sleep(60 * 60 * 6)
-            break
 
     # -------------------------------------- PUBLIC HELPERS -------------------------------------- #
 
@@ -206,7 +204,7 @@ class ItemsParser(Thread):
 
 
         results = {}
-        self.__debug_print("Parsing skins...")
+        self.logger.debug("Parsing skins...")
         for item in self.items_manager.items:
             for paintkit in self.items_manager.paintkits:
                 skin_codename = f"{item.codename}_{paintkit.codename}"

@@ -1,5 +1,5 @@
-from structs.Base import Base
-from structs.Rarity import Rarity
+from csgo_items_parser.structs.Base import Base
+from csgo_items_parser.structs.Rarity import Rarity
 
 class Stickerkit(Base):
     def __init__(self, codename: str, data: dict):

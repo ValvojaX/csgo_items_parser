@@ -1,13 +1,14 @@
 from copy import deepcopy
 import requests
+import logging
 import vdf
 import re
 
-from structs import *
+from csgo_items_parser.structs import *
 
 class ItemsManager():
-    def __init__(self, debug:bool=False) -> None:
-        self.debug = debug
+    def __init__(self) -> None:
+        self.logger = logging.getLogger("ItemsManager")
 
         self.items_game_url = 'https://raw.githubusercontent.com/SteamDatabase/GameTracking-CSGO/master/csgo/scripts/items/items_game.txt'
         self.items_game_cdn_url = 'https://raw.githubusercontent.com/SteamDatabase/GameTracking-CSGO/master/csgo/scripts/items/items_game_cdn.txt'
@@ -32,9 +33,6 @@ class ItemsManager():
         self.stickerkits:       list[Stickerkit]  = []
 
         self.update_files()
-
-    def __debug_print(self, data):
-        if self.debug: print(f"[{self.__class__.__name__}] {data}")
 
     def update_files(self):
         session = requests.Session()
@@ -130,35 +128,35 @@ class ItemsManager():
     # -------------------------------------- PARSERS -------------------------------------- #
 
     def parse_colors(self):
-        self.__debug_print("Parsing colors...")
+        self.logger.debug("Parsing colors...")
         for color_cdn in self.items_game["colors"]:
             color_data = self.items_game["colors"][color_cdn]
             color = Color(codename=color_cdn, data=color_data)
             self.colors.append(color)
 
     def parse_qualities(self):
-        self.__debug_print("Parsing qualities")
+        self.logger.debug("Parsing qualities")
         for quality_cdn in self.items_game["qualities"]:
             quality_data = self.items_game["qualities"][quality_cdn]
             quality = Quality(quality_cdn, quality_data)
             self.qualities.append(quality)
 
     def parse_rarities(self):
-        self.__debug_print("Parsing rarities...")
+        self.logger.debug("Parsing rarities...")
         for rarity_cdn in self.items_game["rarities"]:
             rarity_data = self.items_game["rarities"][rarity_cdn]
             rarity = Rarity(codename=rarity_cdn, data=rarity_data)
             self.rarities.append(rarity)
 
     def parse_graffiti_tints(self):
-        self.__debug_print("Parsing graffiti tints...")
+        self.logger.debug("Parsing graffiti tints...")
         for graffiti_tint_cdn in self.items_game["graffiti_tints"]:
             graffiti_tint_data = self.items_game["graffiti_tints"][graffiti_tint_cdn]
             graffiti_tint = GraffitiTint(codename=graffiti_tint_cdn, data=graffiti_tint_data)
             self.graffiti_tints.append(graffiti_tint)
 
     def parse_prefabs(self):
-        self.__debug_print("Parsing prefabs...")
+        self.logger.debug("Parsing prefabs...")
         for temp_cdn in self.items_game["prefabs"]:
             temp_data = self.items_game["prefabs"][temp_cdn]
             prefab_tree = [temp_cdn] + self.__get_prefab_tree(temp_data)
@@ -175,14 +173,14 @@ class ItemsManager():
                 self.prefabs.append(prefab)
 
     def parse_attributes(self):
-        self.__debug_print("Parsing attributes...")
+        self.logger.debug("Parsing attributes...")
         for attribute_cdn in self.items_game["attributes"]:
             attribute_data = self.items_game["attributes"][attribute_cdn]
             attribute = Attribute(codename=attribute_cdn, data=attribute_data)
             self.attributes.append(attribute)
 
     def parse_items(self):
-        self.__debug_print("Parsing items...")
+        self.logger.debug("Parsing items...")
         for item_cdn in self.items_game["items"]:
             item_data = self.items_game["items"][item_cdn]
             item = Item(codename=item_cdn, data=item_data)
@@ -210,7 +208,7 @@ class ItemsManager():
             self.items.append(item)
 
     def parse_stickerkits(self):
-        self.__debug_print("Parsing stickerkits...")
+        self.logger.debug("Parsing stickerkits...")
         for stickerkit_cdn in self.items_game["sticker_kits"]:
             stickerkit_data = self.items_game["sticker_kits"][stickerkit_cdn]
             stickerkit = Stickerkit(codename=stickerkit_cdn, data=stickerkit_data)
@@ -218,7 +216,7 @@ class ItemsManager():
             self.stickerkits.append(stickerkit)
 
     def parse_paintkits(self):
-        self.__debug_print("Parsing paintkits...")
+        self.logger.debug("Parsing paintkits...")
         default_data = self.items_game["paint_kits"]["default"]
         for paintkit_cdn in self.items_game["paint_kits"]:
             combined = deepcopy(default_data)
@@ -232,14 +230,14 @@ class ItemsManager():
             self.paintkits.append(paintkit)
 
     def parse_musickits(self):
-        self.__debug_print("Parsing musickits...")
+        self.logger.debug("Parsing musickits...")
         for musickit_cdn in self.items_game["music_definitions"]:
             musickit_data = self.items_game["music_definitions"][musickit_cdn]
             musickit = Musicdef(codename=musickit_cdn, data=musickit_data)
             self.musicdefs.append(musickit)
 
     def parse_lootlists(self):
-        self.__debug_print("Parsing lootlists...")
+        self.logger.debug("Parsing lootlists...")
         # parse client lootlists
         lootlist = deepcopy(self.items_game["client_loot_lists"])
         for lootlist_cdn in lootlist:
@@ -257,7 +255,7 @@ class ItemsManager():
                     del lootlist[lootlist_cdn][sublist_name]
 
         # filter sublists and collections, create lootlist objects
-        new_lootlists: [str, Lootlist] = {}
+        new_lootlists: dict[str, Lootlist] = {}
         for lootlist_cdn in lootlist:
             for item_cdn in self.items_game["items"]:
                 item_data = self.items_game["items"][item_cdn]
@@ -352,7 +350,7 @@ class ItemsManager():
         self.lootlists = list(new_lootlists.values())
 
     def parse_collections(self):
-        self.__debug_print("Parsing collections...")
+        self.logger.debug("Parsing collections...")
         for collection_cdn in self.items_game["item_sets"]:
             collection_data = self.items_game["item_sets"][collection_cdn]
             collection = Collection(codename=collection_cdn, data=collection_data)

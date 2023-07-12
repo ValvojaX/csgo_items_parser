@@ -1,5 +1,5 @@
-from structs.Base import Base
-from structs.Item import Item
+from csgo_items_parser.structs.Base import Base
+from csgo_items_parser.structs.Item import Item
 
 class Lootlist(Base):
     def __init__(self, codename: str, data: dict):
