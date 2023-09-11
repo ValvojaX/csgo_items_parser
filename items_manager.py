@@ -10,9 +10,9 @@ class ItemsManager():
     def __init__(self) -> None:
         self.logger = logging.getLogger("ItemsManager")
 
-        self.items_game_url = 'https://raw.githubusercontent.com/SteamDatabase/GameTracking-CSGO/master/csgo/scripts/items/items_game.txt'
-        self.items_game_cdn_url = 'https://raw.githubusercontent.com/SteamDatabase/GameTracking-CSGO/master/csgo/scripts/items/items_game_cdn.txt'
-        self.csgo_english_url = 'https://raw.githubusercontent.com/SteamDatabase/GameTracking-CSGO/master/csgo/resource/csgo_english.txt'
+        self.items_game_url = 'https://raw.githubusercontent.com/SteamDatabase/GameTracking-CS2/64b7772ba263a87083c3979c769c5919aae78337/csgo/scripts/items/items_game.txt'
+        self.items_game_cdn_url = 'https://raw.githubusercontent.com/SteamDatabase/GameTracking-CS2/64b7772ba263a87083c3979c769c5919aae78337/csgo/scripts/items/items_game_cdn.txt'
+        self.csgo_english_url = 'https://raw.githubusercontent.com/SteamDatabase/GameTracking-CS2/64b7772ba263a87083c3979c769c5919aae78337/csgo/resource/csgo_english.txt'
         self.schema_url = 'https://raw.githubusercontent.com/SteamDatabase/SteamTracking/b5cba7a22ab899d6d423380cff21cec707b7c947/ItemSchema/CounterStrikeGlobalOffensive.json'
 
         self.items_game:        dict | None = None
