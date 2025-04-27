@@ -1,11 +1,13 @@
-from csgo_items_parser.structs.Base import Base
+from vdf import VDFDict
+
+from .Base import Base
 
 class Quality(Base):
-    def __init__(self, codename: str, data: dict):
+    def __init__(self, codename: str, data: VDFDict):
         super().__init__(codename)
-        self.value = data.get("value")
-        self.weight = data.get("weight")
-        self.hex_color = data.get("hexColor")
+        self.value: str = data.get("value")
+        self.weight: str = data.get("weight")
+        self.hex_color: str = data.get("hexColor")
 
     def asdict(self) -> dict:
         return {

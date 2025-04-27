@@ -1,10 +1,12 @@
-from csgo_items_parser.structs.Base import Base
+from vdf import VDFDict
+
+from .Base import Base
 
 class Musicdef(Base):
-    def __init__(self, codename: str, data: dict):
+    def __init__(self, codename: str, data: VDFDict):
         super().__init__(codename)
-        self.name_tag = data.get("loc_name")
-        self.index = data.get("index")
+        self.name_tag: str = data.get("loc_name")
+        self.index: str = data.get("index")
 
     def asdict(self) -> dict:
         return {

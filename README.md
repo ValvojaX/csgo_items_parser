@@ -1,20 +1,36 @@
-## CSGO Item Parser
+## CS Item Parser
 
-A script to parse items_game.txt of csgo.
+A script to parse items_game.txt of cs.
 
 ### Installation
 
 ```
-git clone https://github.com/ValvojaX/csgo_items_parser.git
+git clone https://github.com/ValvojaX/cs_items_parser.git
 ```
 
 ### Usage
 
 ```py
-from csgo_items_parser import ItemsParser
+from cs_parser import ItemsParser
 
 parser = ItemsParser()
 skins = parser.get_skins()
+```
+
+### CS Item Parser CLI
+
+Clone the repository and install it using pip:
+
+```bash
+git clone https://github.com/ValvojaX/cs_items_parser.git
+cd cs_items_parser
+pip install .
+```
+
+Then you can use the command line interface to create a JSON file with parsed data:
+
+```bash
+cs-parser -t all -o output.json
 ```
 
 ### Truncated example item
@@ -35,7 +51,7 @@ skins = parser.get_skins()
                 "codename": "weapon_deagle_prefab",
                 "name_tag": "#SFUI_WPNHUD_DesertEagle",
                 "attributes": {
-                    "magazine model": "models/weapons/w_pist_deagle_mag.mdl",
+                    "magazine model": "weapons\/models\/deagle\/weapon_pist_deagle_mag.vmdl",
                     "heat per shot": "0.300000",
                     ...
                 },
@@ -48,11 +64,23 @@ skins = parser.get_skins()
                     "name_tag_weapon": "Rarity_Uncommon_Weapon",
                     "name_tag_character": "Rarity_Uncommon_Character"
                 },
-                "prefab": {
-                    "codename": "secondary",
-                    "name_tag": null,
-                    ...
-                }
+                "prefabs": [
+                    {
+                        "codename": "secondary",
+                        "name_tag": null,
+                        "attributes": {
+                            "stattrak model": "models\/weapons\/stattrack.vmdl",
+                            "flinch velocity modifier large": "0.560000",
+                            ...
+                        },
+                        "tags": {},
+                        "quality": null,
+                        "rarity": null,
+                        "prefabs": [
+                            ...
+                        ]
+                    }
+                ]
             },
             "quality": {
                 "codename": "normal",
@@ -129,13 +157,13 @@ skins = parser.get_skins()
         "lootlist": {
             "codename": "set_overpass",
             "aliases": [
-                "crate_stockh2021_promo_de_overpass",
-                "crate_london2018_promo_de_overpass",
+                "crate_antwerp2022_promo_de_overpass",
+                "crate_boston2018_promo_de_overpass",
                 ...
             ],
             "items": [
-                "[sp_spray]weapon_m249",
-                "[so_stormfront]weapon_mag7",
+                "[cu_usp_sandpapered]weapon_usp_silencer",
+                "[hy_varicamo_blue]weapon_xm1014",
                 ...
             ],
             "containers": [

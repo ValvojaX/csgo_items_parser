@@ -1,13 +1,15 @@
-from csgo_items_parser.structs.Base import Base
-from csgo_items_parser.structs.Rarity import Rarity
+from vdf import VDFDict
+
+from .Base import Base
+from .Rarity import Rarity
 
 class Stickerkit(Base):
-    def __init__(self, codename: str, data: dict):
+    def __init__(self, codename: str, data: VDFDict):
         super().__init__(codename)
-        self.rarity: Rarity = None
+        self.rarity: Rarity | None = None
 
-        self.name_tag = data.get("item_name")
-        self.index = data.get("index")
+        self.name_tag: str = data.get("item_name")
+        self.index: str = data.get("index")
 
     def asdict(self) -> dict:
         return {

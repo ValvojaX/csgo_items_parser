@@ -1,12 +1,14 @@
-from csgo_items_parser.structs.Base import Base
-from csgo_items_parser.structs.Item import Item
+from vdf import VDFDict
+
+from .Base import Base
+from .Item import Item
 
 class Collection(Base):
-    def __init__(self, codename: str, data: dict):
+    def __init__(self, codename: str, data: VDFDict):
         super().__init__(codename)
-        self.name_tag = data.get("name")
+        self.name_tag: str = data.get("name")
         self.crates: list[Item] = []
-        self.items = [i for i in data["items"]]
+        self.items: list[str] = [i for i in data["items"]]
 
     def asdict(self) -> dict:
         return {

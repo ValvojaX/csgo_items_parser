@@ -1,131 +1,159 @@
-from copy import deepcopy
 import requests
 import logging
+
 import vdf
 import re
 
-from csgo_items_parser.structs import *
+from vdf import VDFDict
 
-class ItemsManager():
-    def __init__(self) -> None:
+from .structs import *
+
+class ItemsManager:
+    def __init__(self):
         self.logger = logging.getLogger("ItemsManager")
 
-        self.items_game_url = 'https://raw.githubusercontent.com/SteamDatabase/GameTracking-CS2/64b7772ba263a87083c3979c769c5919aae78337/csgo/scripts/items/items_game.txt'
-        self.items_game_cdn_url = 'https://raw.githubusercontent.com/SteamDatabase/GameTracking-CS2/64b7772ba263a87083c3979c769c5919aae78337/csgo/scripts/items/items_game_cdn.txt'
-        self.csgo_english_url = 'https://raw.githubusercontent.com/SteamDatabase/GameTracking-CS2/64b7772ba263a87083c3979c769c5919aae78337/csgo/resource/csgo_english.txt'
-        self.schema_url = 'https://raw.githubusercontent.com/SteamDatabase/SteamTracking/b5cba7a22ab899d6d423380cff21cec707b7c947/ItemSchema/CounterStrikeGlobalOffensive.json'
+        # URLs for the items game file and other resources
+        self.items_game_url = 'https://raw.githubusercontent.com/SteamDatabase/GameTracking-CS2/master/game/csgo/pak01_dir/scripts/items/items_game.txt'
+        self.csgo_english_url = 'https://raw.githubusercontent.com/SteamDatabase/GameTracking-CS2/master/game/csgo/pak01_dir/resource/csgo_english.txt'
+        self.pak01_url = 'https://raw.githubusercontent.com/SteamDatabase/GameTracking-CS2/refs/heads/master/game/csgo/pak01_dir.txt'
 
-        self.items_game:        dict | None = None
-        self.items_game_cdn:    list | None = None
-        self.tokens:            dict | None = None
+        # Stored resources
+        self.items_game:        VDFDict | None = None           # Contains item data
+        self.items_game_cdn:    list | None = None              # Contains item codenames
+        self.tokens:            dict | None = None              # Contains translations for items
 
-        self.attributes:        list[Attribute]   = []
-        self.collections:       list[Collection]  = []
-        self.colors:            list[Color]       = []
+        # Parsed items
+        self.attributes:        list[Attribute]    = []
+        self.collections:       list[Collection]   = []
+        self.colors:            list[Color]        = []
         self.graffiti_tints:    list[GraffitiTint] = []
-        self.items:             list[Item]        = []
-        self.lootlists:         list[Lootlist]    = []
-        self.musicdefs:         list[Musicdef]    = []
-        self.paintkits:         list[Paintkit]    = []
-        self.prefabs:           list[Prefab]      = []
-        self.qualities:         list[Quality]     = []
-        self.rarities:          list[Rarity]      = []
-        self.stickerkits:       list[Stickerkit]  = []
+        self.items:             list[Item]         = []
+        self.lootlists:         list[Lootlist]     = []
+        self.musicdefs:         list[Musicdef]     = []
+        self.paintkits:         list[Paintkit]     = []
+        self.prefabs:           list[Prefab]       = []
+        self.qualities:         list[Quality]      = []
+        self.rarities:          list[Rarity]       = []
+        self.stickerkits:       list[Stickerkit]   = []
+        self.keychains:         list[Keychain]     = []
 
-        self.update_files()
 
     def update_files(self):
-        session = requests.Session()
+        session = requests.session()
 
         items_game_text = session.get(self.items_game_url).text
-        items_game = vdf.loads(items_game_text)["items_game"]
+        self.items_game = vdf.loads(items_game_text, mapper=vdf.VDFDict, merge_duplicate_keys=False)["items_game"]
 
-        items_english_text = session.get(self.csgo_english_url).text
-        items_english = vdf.loads(items_english_text)
-        tokens = {k.lower(): v for k, v in items_english["lang"]["Tokens"].items()}
+        csgo_english_text = session.get(self.csgo_english_url).text
+        items_english = vdf.loads(csgo_english_text)
+        self.tokens = {k.lower(): v for k, v in items_english["lang"]["Tokens"].items()}
 
-        items_game_cdn_text = session.get(self.items_game_cdn_url).text
-        items_game_cdn_text = items_game_cdn_text.split("\n")
-        items_game_cdn = [line.split("=")[0] for line in items_game_cdn_text if "=" in line]
+        pak01_dir_text = session.get(self.pak01_url).text
+        pak01_dir_regex = r'(?<=panorama/images/econ/default_generated/)(.*?)(?=_light_png.vtex_c|_medium_png.vtex_c|_heavy_png.vtex_c)'
+        self.items_game_cdn = list(set(re.findall(pak01_dir_regex, pak01_dir_text)))
 
-        self.items_game = items_game
-        self.items_game_cdn = items_game_cdn
-        self.tokens = tokens
-
-        self.__swap_keys()
-        self.__remove_empty_prefabs()
-
-        self.attributes:        list[Attribute]   = []
-        self.collections:       list[Collection]  = []
-        self.colors:            list[Color]       = []
-        self.graffiti_tints:    list[GraffitiTint] = []
-        self.items:             list[Item]        = []
-        self.lootlists:         list[Lootlist]    = []
-        self.musicdefs:         list[Musicdef]    = []
-        self.paintkits:         list[Paintkit]    = []
-        self.prefabs:           list[Prefab]      = []
-        self.qualities:         list[Quality]     = []
-        self.rarities:          list[Rarity]      = []
-        self.stickerkits:       list[Stickerkit]  = []
-
+        self.__preprocess()
         self.parse()
 
-    # -------------------------------------- HELPERS -------------------------------------- #
+    # -------------------------------------- PREPROCESSING -------------------------------------- #
 
-    # remove prefabs that do not exist
-    def __remove_empty_prefabs(self):
+    def __preprocess(self):
+        self.__delete_unnecessary_data()
+        self.__merge_duplicate_keys_root()
+        self.__swap_keys()
+        self.__delete_empty_prefabs()
+
+    def __delete_unnecessary_data(self):
+        for key in ["campaign_definitions", "quest_schedule", "skirmish_modes", "skirmish_rank_info", "recipes", "pro_event_results", "pro_players", "pro_teams", "items_game_live"]:
+            del self.items_game[key]
+        self.logger.debug(f"Deleted unnecessary data")
+
+    def __merge_duplicate_keys_root(self):
+        # Merge duplicate keys in root level to make things easier
+        key_count = len(self.items_game)
+        cached_items: dict[str, list[VDFDict]] = {k: self.items_game.get_all_for(k) for k, v in self.items_game.items()}
+        for key in self.items_game.keys():
+            self.items_game.remove_all_for(key)
+
+        for key, vdf_dict_list in cached_items.items():
+            self.items_game[key] = VDFDict()
+            for item in vdf_dict_list:
+                self.items_game[key].update(item)
+
+        self.logger.debug(f"Merged duplicate keys in root level: {key_count} -> {len(self.items_game)} items")
+
+    def __swap_keys(self):
+        # Swap indexes and names
+        for key in ["items", "sticker_kits", "paint_kits", "music_definitions", "attributes", "keychain_definitions"]:
+            new_entry = VDFDict()
+            for index in self.items_game[key]:
+                item_name = self.items_game[key][index]["name"]
+                new_entry[item_name] = self.items_game[key][index]
+                new_entry[item_name]["index"] = index
+
+            del self.items_game[key]
+            self.items_game[key] = new_entry
+
+        self.logger.debug(f"Swapped keys with indexes")
+
+    def __delete_empty_prefabs(self):
+        # Some items have prefabs that do not exist. Remove them.
         for item_cdn in self.items_game["items"]:
             item_data = self.items_game["items"][item_cdn]
             if "prefab" not in item_data:
                 continue
 
             valid_prefab_cdns = []
-            prefab_cdns = item_data["prefab"].split(" ")
-            for prefab_cdn in prefab_cdns:
+            for prefab_cdn in item_data["prefab"].split(" "):
                 if prefab_cdn in self.items_game["prefabs"]:
                     valid_prefab_cdns.append(prefab_cdn)
 
-            item_data["prefab"] = " ".join(valid_prefab_cdns)
+            item_data[(0, "prefab")] = " ".join(valid_prefab_cdns)
 
-    # change keys to be names instead of indexes
-    def __swap_keys(self):
-        for key in ["items", "sticker_kits", "paint_kits", "music_definitions", "attributes"]:
-            temp = {}
-            for item_index in self.items_game[key]:
-                item_name = self.items_game[key][item_index]["name"]
-                temp[item_name] = self.items_game[key][item_index]
-                temp[item_name]["index"] = item_index
-            self.items_game[key] = temp
+        self.logger.debug(f"Removed empty prefabs")
 
-    # helper func to get inherited prefabs
-    def __get_prefab_tree(self, data: dict):
+    def __get_prefab_tree(self, data: VDFDict) -> list[str]:
         tree = []
         if "prefab" not in data:
             return tree
 
-        next_data = data["prefab"]
-        if type(next_data) == str:
-            tree.append(next_data)
-            next_data = self.items_game["prefabs"][next_data]
+        for prefab_name in data["prefab"].split(" "):
+            tree.append(prefab_name)
+            tree += self.__get_prefab_tree(self.items_game["prefabs"][prefab_name])
 
-        return tree + self.__get_prefab_tree(next_data)
+        return tree
 
-    # helper func to get items from a lootlist
-    def __get_lootlist_items(self, lootlist_cdn: str):
+    def __get_lootlist_items(self, lootlist_cdn: str) -> dict:
         lootlist_items = {}
         lootlist_regex = r'\[(.*?)\](.*?)$'
-        items_game_cdns = [i.get("name") for i in self.items_game["items"].values() if i.get("name") is not None]
+        item_cdns = [i.get("name") for i in self.items_game["items"].values() if i.get("name") is not None]
+
         for key in self.items_game["client_loot_lists"][lootlist_cdn]:
             if key in self.items_game["client_loot_lists"]:
                 lootlist_items[key] = self.__get_lootlist_items(key)
             elif re.search(lootlist_regex, key) is not None:
                 lootlist_items[key] = self.items_game["client_loot_lists"][lootlist_cdn][key]
-            elif key in items_game_cdns: # not all items are format "[item_name]item_type"
+            elif key in item_cdns: # not all items are format "[item_name]item_type"
                 lootlist_items[key] = self.items_game["client_loot_lists"][lootlist_cdn][key]
 
         return lootlist_items
 
-    # -------------------------------------- PARSERS -------------------------------------- #
+    # -------------------------------------- PARSING -------------------------------------- #
+
+    def parse(self):
+        self.parse_colors()
+        self.parse_qualities()
+        self.parse_rarities()
+        self.parse_graffiti_tints()
+        self.parse_prefabs()
+        self.parse_attributes()
+        self.parse_items()
+        self.parse_stickerkits()
+        self.parse_paintkits()
+        self.parse_musickits()
+        self.parse_lootlists()
+        self.parse_collections()
+        self.parse_keychains()
 
     def parse_colors(self):
         self.logger.debug("Parsing colors...")
@@ -157,20 +185,24 @@ class ItemsManager():
 
     def parse_prefabs(self):
         self.logger.debug("Parsing prefabs...")
-        for temp_cdn in self.items_game["prefabs"]:
-            temp_data = self.items_game["prefabs"][temp_cdn]
-            prefab_tree = [temp_cdn] + self.__get_prefab_tree(temp_data)
-            for prefab_cdn in reversed(prefab_tree):
+        prefab_lists = [[i] + self.__get_prefab_tree(self.items_game["prefabs"][i]) for i in self.items_game["prefabs"]]
+        for prefab_list in prefab_lists:
+            for prefab_cdn in prefab_list:
                 if self.get_prefab(prefab_cdn) is not None:
                     continue
 
                 prefab_data = self.items_game["prefabs"][prefab_cdn]
+
+
                 prefab = Prefab(codename=prefab_cdn, data=prefab_data)
-                prefab.prefab = self.get_prefab(prefab_data.get("prefab"))
                 prefab.quality = self.get_quality(prefab_data.get("item_quality"))
                 prefab.rarity = self.get_rarity(prefab_data.get("item_rarity"))
 
+                if prefab_data.get("prefab") is not None:
+                    prefab.prefabs = [self.get_prefab(i) for i in prefab_data.get("prefab").split(" ")]
+
                 self.prefabs.append(prefab)
+
 
     def parse_attributes(self):
         self.logger.debug("Parsing attributes...")
@@ -187,12 +219,12 @@ class ItemsManager():
             item.prefab = self.get_prefab(item_data.get("prefab"))
             item.quality = self.get_quality(item_data.get("item_quality"))
             item.rarity = self.get_rarity(item_data.get("item_rarity"))
+
             if "attributes" in item_data:
                 for attribute_name in item_data["attributes"]:
-                    # convert type to dict
                     attribute_data = item_data["attributes"][attribute_name]
-                    if not isinstance(attribute_data, dict):
-                        attribute_data = {attribute_name: attribute_data}
+                    if not isinstance(attribute_data, VDFDict):
+                        attribute_data = VDFDict({attribute_name: attribute_data})
 
                     # add default attribute data
                     attribute = self.get_attribute(attribute_name)
@@ -201,7 +233,7 @@ class ItemsManager():
                             attribute_data[key] = getattr(attribute, key)
 
                     # add combined attribute information
-                    item.attributes[attribute_name] = attribute_data
+                    item.attributes[attribute_name] = dict(attribute_data)
             if item.name_tag is None:
                 item.name_tag = item.prefab.name_tag
 
@@ -217,13 +249,13 @@ class ItemsManager():
 
     def parse_paintkits(self):
         self.logger.debug("Parsing paintkits...")
-        default_data = self.items_game["paint_kits"]["default"]
+        default_data: VDFDict = self.items_game["paint_kits"]["default"]
         for paintkit_cdn in self.items_game["paint_kits"]:
-            combined = deepcopy(default_data)
+            combined = VDFDict(default_data.copy())
             paintkit_data = self.items_game["paint_kits"][paintkit_cdn]
             for key in default_data:
                 if key in paintkit_data:
-                    combined[key] = paintkit_data[key]
+                    combined[(0, key)] = paintkit_data[key]
 
             paintkit = Paintkit(codename=paintkit_cdn.lower(), data=combined)
             paintkit.rarity = self.get_rarity(self.items_game["paint_kits_rarity"].get(paintkit_cdn))
@@ -236,48 +268,66 @@ class ItemsManager():
             musickit = Musicdef(codename=musickit_cdn, data=musickit_data)
             self.musicdefs.append(musickit)
 
+    def parse_keychains(self):
+        self.logger.debug("Parsing keychains...")
+        for keychain_cdn in self.items_game["keychain_definitions"]:
+            keychain_data = self.items_game["keychain_definitions"][keychain_cdn]
+            keychain = Keychain(codename=keychain_cdn, data=keychain_data)
+            self.keychains.append(keychain)
+
     def parse_lootlists(self):
         self.logger.debug("Parsing lootlists...")
-        # parse client lootlists
-        lootlist = deepcopy(self.items_game["client_loot_lists"])
-        for lootlist_cdn in lootlist:
-            sublists = [0]
-            while sublists:
-                sublists = []
-                for key in lootlist[lootlist_cdn]:
-                    if key in self.items_game["client_loot_lists"]:
-                        sublists.append(key)
 
-                for sublist_name in sublists:
-                    for key in self.items_game["client_loot_lists"][sublist_name]:
-                        lootlist[lootlist_cdn][key] = self.items_game["client_loot_lists"][sublist_name][key]
+        # Replace sublist references with their contents
+        client_loot_lists = VDFDict(self.items_game["client_loot_lists"].copy())
+        for lootlist_cdn in client_loot_lists:
+            lootlist: VDFDict = client_loot_lists[lootlist_cdn]
 
-                    del lootlist[lootlist_cdn][sublist_name]
+            sublists: dict[str, VDFDict] = {key: self.items_game["client_loot_lists"][key] for key in lootlist if key in self.items_game["client_loot_lists"]}
+            for sublist_key, sublist in sublists.items():
+                lootlist.update(sublist)
+                del lootlist[sublist_key]
 
-        # filter sublists and collections, create lootlist objects
-        new_lootlists: dict[str, Lootlist] = {}
-        for lootlist_cdn in lootlist:
-            for item_cdn in self.items_game["items"]:
-                item_data = self.items_game["items"][item_cdn]
+        # Seasonal lootlist
+        seasonal_lootlists = {}
+        for operation_index in self.items_game["seasonaloperations"]:
+            seasonal_operation = self.items_game["seasonaloperations"][operation_index]
+            if "operational_point_redeemable" not in seasonal_operation:
+                continue
 
-                if lootlist_cdn == item_data.get("name"):
-                    _lootlist = Lootlist(codename=lootlist_cdn, data=item_data)
-                    new_lootlists[lootlist_cdn] = _lootlist
-                    continue
+            redeemables = seasonal_operation.get_all_for("operational_point_redeemable")
+            for redeemable in redeemables:
+                redeemable_lootlist_name = redeemable.get("item_name").lstrip("lootlist:")
+                seasonal_lootlists[redeemable_lootlist_name] = redeemable
 
-                if lootlist_cdn == item_data.get("loot_list_name"):
-                    _lootlist = Lootlist(codename=lootlist_cdn, data=item_data)
-                    new_lootlists[lootlist_cdn] = _lootlist
-                    continue
 
-                for attribute_name in item_data.get("attributes", []):
-                    if attribute_name == "set supply crate series":
-                        revolving_index = item_data["attributes"][attribute_name]["value"]
-                        if self.items_game["revolving_loot_lists"][revolving_index] == lootlist_cdn:
-                            _lootlist = Lootlist(codename=lootlist_cdn, data=item_data)
-                            new_lootlists[lootlist_cdn] = _lootlist
+        # Create lootlist objects
+        lootlists: dict[str, Lootlist] = {}
+        for item_cdn in self.items_game["items"]:
+            item_data = self.items_game["items"][item_cdn]
 
-        # get aliases
+            item_name = item_data.get("name")
+            if item_name is not None and item_name in client_loot_lists:
+                lootlists[item_name] = Lootlist(codename=item_name, data=item_data)
+                continue
+
+            lootlist_name = item_data.get("loot_list_name")
+            if lootlist_name is not None and lootlist_name in client_loot_lists:
+                lootlists[lootlist_name] = Lootlist(codename=lootlist_name, data=item_data)
+                continue
+
+            for attribute_name in item_data.get("attributes", []):
+                if attribute_name == "set supply crate series":
+                    revolving_index = item_data["attributes"][attribute_name]["value"]
+                    revolving_lootlist_name = self.items_game["revolving_loot_lists"][revolving_index]
+                    if revolving_lootlist_name is not None and revolving_lootlist_name in client_loot_lists:
+                        lootlists[revolving_lootlist_name] = Lootlist(codename=revolving_lootlist_name, data=item_data)
+
+        for lootlist_cdn in client_loot_lists:
+            if lootlist_cdn not in lootlists and lootlist_cdn in seasonal_lootlists:
+                lootlists[lootlist_cdn] = Lootlist(codename=lootlist_cdn, data=seasonal_lootlists[lootlist_cdn])
+
+        # Get aliases for lootlists
         alias_sets = []
         for item_cdn in self.items_game["items"]:
             item_data = self.items_game["items"][item_cdn]
@@ -297,57 +347,62 @@ class ItemsManager():
             if alias_set:
                 alias_sets.append(alias_set)
 
-        # add aliases to lootlists
-        for lootlist_cdn in new_lootlists:
+        # Add aliases to lootlists
+        for lootlist_cdn in lootlists:
             for alias_set in alias_sets:
                 if lootlist_cdn in alias_set:
-                    new_lootlists[lootlist_cdn].aliases.update(alias_set)
+                    lootlists[lootlist_cdn].aliases.update(alias_set)
 
-                for key in lootlist[lootlist_cdn]:
+                for key in client_loot_lists[lootlist_cdn]:
                     if key in alias_set and key in self.items_game["items"]:
                         prefab = self.get_item(key).prefab
                         if "weapon_case_base" in self.get_prefab_tree(prefab):
-                            new_lootlists[lootlist_cdn].aliases.update(alias_set)
+                            lootlists[lootlist_cdn].aliases.update(alias_set)
 
         # add revolving lootlists
-        existing_lootlist_aliases = [lootlist.aliases for lootlist in new_lootlists.values()]
+        existing_lootlist_aliases = [i.aliases for i in lootlists.values()]
+        existing_lootlist_aliases_all = [i for i in existing_lootlist_aliases for i in i]
+
         for revolving_index in self.items_game["revolving_loot_lists"]:
             revolving_name = self.items_game["revolving_loot_lists"][revolving_index]
+            exists = revolving_name in existing_lootlist_aliases_all
 
-            exists = False
-            for existing_aliases in existing_lootlist_aliases:
-                if revolving_name in existing_aliases:
-                    exists = True
-                    break
+            # Skip if we have already added this lootlist
+            if exists:
+                continue
 
-            if not exists:
-                _lootlist = Lootlist(codename=revolving_name, data={})
-                new_lootlists[revolving_name] = _lootlist
+            lootlists[revolving_name] = Lootlist(codename=revolving_name, data=VDFDict({}))
 
         # get items
-        for loostlist_cdn in new_lootlists:
-            for alias in new_lootlists[loostlist_cdn].aliases:
+        for loostlist_cdn in lootlists:
+            items = set()
+            for alias in lootlists[loostlist_cdn].aliases:
                 if alias in self.items_game["item_sets"]:
-                    new_lootlists[loostlist_cdn].items = self.items_game["item_sets"][alias]["items"]
-                elif alias in lootlist:
-                    new_lootlists[loostlist_cdn].items = [i for i in lootlist[alias]]
+                    items.update(self.items_game["item_sets"][alias]["items"])
+                elif alias in client_loot_lists:
+                    items.update([i for i in client_loot_lists[alias]])
+
+            lootlists[loostlist_cdn].items = list(items)
 
         # get crates
-        for lootlist_cdn in new_lootlists:
+        for lootlist_cdn in lootlists:
             for item_cdn in self.items_game["items"]:
                 item_data = self.items_game["items"][item_cdn]
-                if item_data.get("name") in new_lootlists[lootlist_cdn].aliases or\
-                   item_data.get("loot_list_name") in new_lootlists[lootlist_cdn].aliases:
+
+                item_name = item_data.get("name")
+                item_lootlist_name = item_data.get("loot_list_name")
+                if item_name in lootlists[lootlist_cdn].aliases or\
+                   item_lootlist_name in lootlists[lootlist_cdn].aliases:
 
                     # filter coupons, collections, standalone stickers
-                    if item_data.get("loot_list_name") in self.items_game["client_loot_lists"]:
+                    if item_lootlist_name is not None and item_lootlist_name in self.items_game["client_loot_lists"]:
                         continue
 
                     container = self.get_item(item_cdn)
-                    if container not in new_lootlists[lootlist_cdn].containers:
-                        new_lootlists[lootlist_cdn].containers.append(container)
+                    if container not in lootlists[lootlist_cdn].containers:
+                        lootlists[lootlist_cdn].containers.append(container)
 
-        self.lootlists = list(new_lootlists.values())
+        self.lootlists = list(sorted(lootlists.values(), key=lambda x: len(x.containers), reverse=True))
 
     def parse_collections(self):
         self.logger.debug("Parsing collections...")
@@ -370,21 +425,6 @@ class ItemsManager():
                     collection.crates.append(crate)
 
             self.collections.append(collection)
-
-    # function to create shared objects to save memory
-    def parse(self) -> None:
-        self.parse_colors()
-        self.parse_qualities()
-        self.parse_rarities()
-        self.parse_graffiti_tints()
-        self.parse_prefabs()
-        self.parse_attributes()
-        self.parse_items()
-        self.parse_stickerkits()
-        self.parse_paintkits()
-        self.parse_musickits()
-        self.parse_lootlists()
-        self.parse_collections()
 
     # -------------------------------------- GETTERS -------------------------------------- #
 
@@ -472,6 +512,13 @@ class ItemsManager():
 
         return None
 
+    def get_keychain(self, codename: str) -> Keychain | None:
+        for keychain in self.keychains:
+            if keychain.codename == codename:
+                return keychain
+
+        return None
+
     # -------------------------------------- PUBLIC HELPERS -------------------------------------- #
 
     def get_market_hash_name(self, name_tag: str) -> str | None:
@@ -481,10 +528,14 @@ class ItemsManager():
         return codename in self.items_game_cdn
 
     @staticmethod
-    def get_prefab_tree(prefab: Prefab) -> list[str]:
+    def get_prefab_tree(prefab: Prefab | None) -> list[str]:
         prefab_tree = []
-        while prefab is not None:
-            prefab_tree.append(prefab.codename)
-            prefab = prefab.prefab
+
+        if prefab is None:
+            return prefab_tree
+
+        for i in prefab.prefabs:
+            prefab_tree.append(i.codename)
+            prefab_tree += ItemsManager.get_prefab_tree(i)
 
         return prefab_tree

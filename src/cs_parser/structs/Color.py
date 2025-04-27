@@ -1,10 +1,12 @@
-from csgo_items_parser.structs.Base import Base
+from vdf import VDFDict
+
+from .Base import Base
 
 class Color(Base):
-    def __init__(self, codename: str, data: dict):
+    def __init__(self, codename: str, data: VDFDict):
         super().__init__(codename)
-        self.color_name = data.get("color_name")
-        self.hex_color = data.get("hex_color")
+        self.color_name: str = data.get("color_name")
+        self.hex_color: str = data.get("hex_color")
 
     def asdict(self) -> dict:
         return {

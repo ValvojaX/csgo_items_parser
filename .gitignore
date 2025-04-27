@@ -1,2 +1,6 @@
-__pycache__
-main.py
+.idea/*
+.venv/
+data/
+
+__pycache__/
+*.egg-info/

@@ -1,8 +1,11 @@
-from csgo_items_parser.structs.Base import Base
-from csgo_items_parser.structs.Item import Item
+from vdf import VDFDict
+
+from .Base import Base
+from .Item import Item
+
 
 class Lootlist(Base):
-    def __init__(self, codename: str, data: dict):
+    def __init__(self, codename: str, data: VDFDict):
         super().__init__(codename)
         self.containers: list[Item] = []
 

@@ -1,18 +1,15 @@
-from threading import Thread
-from time import sleep
 import logging
 import re
 
-from csgo_items_parser.items_manager import ItemsManager
-from csgo_items_parser.structs import *
+from .items_manager import ItemsManager
+from .structs import *
 
-class ItemsParser(Thread):
+class ItemsParser:
     def __init__(self) -> None:
         super().__init__()
         self.items_manager = ItemsManager()
         self.logger = logging.getLogger("ItemsParser")
         self.manual_changes()
-        self.update_interval = 60 * 60 * 6 # 6 hours
 
         self.souvenir_collections = {
             "set_vertigo":          "The Vertigo Collection",
@@ -83,12 +80,6 @@ class ItemsParser(Thread):
         self.items_manager.update_files()
         self.manual_changes()
 
-    def run(self):
-        while True:
-            sleep(self.update_interval)
-            self.logger.debug("Updating files...")
-            self.items_manager.update_files()
-
     # -------------------------------------- PUBLIC HELPERS -------------------------------------- #
 
     def get_lootlist_by_item_codename(self, codename: str) -> Lootlist | None:
@@ -100,7 +91,8 @@ class ItemsParser(Thread):
 
     def get_collection_by_item_codename(self, codename: str) -> Collection | None:
         for collection in self.items_manager.collections:
-            if codename in collection.items:
+            collection_items = map(lambda x: x.lower(), collection.items)
+            if codename in collection_items:
                 return collection
 
     # -------------------------------------- GETTERS -------------------------------------- #
@@ -310,6 +302,26 @@ class ItemsParser(Thread):
                                 market_hash_name = f"StatTrak™ {market_hash_name}"
                                 results[market_hash_name] = {"item": item.asdict(), "musicdef": musicdef.asdict()}
                                 break
+
+        return results
+
+    def get_keychains(self):
+        results = {}
+        lootlist_regex = r'\[(.*?)\](.*?)$'
+        for lootlist in self.items_manager.lootlists:
+            for lootlist_item in lootlist.items:
+                match = re.search(lootlist_regex, lootlist_item)
+                if match is not None:
+                    item_cdn, itemtype_cdn = match.groups()
+                    if itemtype_cdn == "keychain":
+                        item = self.items_manager.get_item(itemtype_cdn)
+                        keychain = self.items_manager.get_keychain(item_cdn)
+
+                        item_name = self.items_manager.get_market_hash_name(item.name_tag)
+                        keychain_name = self.items_manager.get_market_hash_name(keychain.name_tag)
+
+                        market_hash_name = f"{item_name} | {keychain_name}"
+                        results[market_hash_name] = {"item": item.asdict(), "keychain": keychain.asdict()}
 
         return results
 
